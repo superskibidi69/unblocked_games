@@ -1,10 +1,11 @@
-const CACHE_NAME = 'unblocked-games-v1';
+const CACHE_NAME = 'unblocked-games-v1.0.0.1';
 const PRECACHE_URLS = [
   '/',
   '/index.html',
   '/suika/index.html',
   '/offline.html',
   '/404.html',
+  '/service-worker.js',
 ];
 
 self.addEventListener('install', (event) => {
