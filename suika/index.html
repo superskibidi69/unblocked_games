@@ -155,9 +155,9 @@
 
         <div id="game-end-container">
           <div id="game-end">
-            <div id="game-end-title">Game Over!</div>
-            <a id="game-end-link" onclick="window.location.reload();"></a>>Try Again</a>
-          </div>
+              <div id="game-end-title">Game Over!</div>
+              <a id="game-end-link" onclick="window.location.reload();">Try Again</a>
+            </div>
         </div>
 
         <div id="game-status">
@@ -175,5 +175,11 @@
   </div>
   <script type="text/javascript" src="matter.js"></script>
   <script type="text/javascript" src="index.js"></script>
+  <script>
+    // Ensure the service worker is registered when the game page is opened directly
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
+    }
+  </script>
 </body>
 </html>
