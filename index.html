@@ -24,9 +24,7 @@
       <a class="game" href="/suika/">Suika / Watermelon Game Clone</a>
     </div>
 
-    <p style="margin-top:12px">
-      <button id="download-offline" style="padding:8px 12px;border-radius:8px;border:0;background:#1f6feb;color:white;cursor:pointer">Download Suika for offline</button>
-    </p>
+    
     
   </div>
 
@@ -36,32 +34,7 @@
       navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
     }
 
-    // Ask the service worker to precache game assets when user clicks the button
-    document.addEventListener('DOMContentLoaded', () => {
-      const btn = document.getElementById('download-offline');
-      if (!btn) return;
-      btn.addEventListener('click', async () => {
-        if (!navigator.serviceWorker?.controller) {
-          alert('Service worker not active yet — try again in a moment.');
-          return;
-        }
-
-        // List of assets to pre-cache for suika.
-        const urls = [
-          '/suika/index.html', '/suika/index.js', '/suika/matter.js', '/suika/offline.html',
-        ];
-        // Add images/sounds under assets folder
-        const assets = [
-          '/suika/assets/img/bg-menu.png',
-          '/suika/assets/img/pop.png',
-        ];
-        // Add a few sample circle images if present
-        for (let i=0;i<=10;i++) urls.push(`/suika/assets/img/circle${i}.png`);
-        navigator.serviceWorker.controller.postMessage({ type: 'PRECACHE_URLS', urls: urls.concat(assets) });
-        btn.innerText = 'Downloading…';
-        setTimeout(()=>btn.innerText = 'Downloaded (or queued)', 1500);
-      });
-    });
+    // The service worker now automatically crawls and caches same-origin resources from root on install.
   </script>
 </body>
 </html>

@@ -9,9 +9,16 @@ const PRECACHE_URLS = [
 
 self.addEventListener('install', (event) => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(PRECACHE_URLS).catch(()=>{}))
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await cache.addAll(PRECACHE_URLS).catch(()=>{});
+    // After pre-caching the shell, crawl the site starting at root and cache same-origin resources.
+    try {
+      await crawlAndCache(self.location.origin + '/');
+    } catch (e) {
+      // swallow crawl errors to not fail install
+    }
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -36,6 +43,63 @@ async function fetchAndCache(request) {
     return response;
   } catch (err) {
     return null;
+  }
+}
+
+// Crawl same-origin HTML pages starting from a URL and cache discovered same-origin links.
+// This is bounded to avoid runaway installs on very large sites.
+async function crawlAndCache(startUrl) {
+  const MAX_ENTRIES = 300; // safety bound
+  const queue = [startUrl];
+  const seen = new Set();
+  const cache = await caches.open(CACHE_NAME);
+
+  while (queue.length > 0 && seen.size < MAX_ENTRIES) {
+    const url = queue.shift();
+    if (!url) continue;
+    // Only same-origin
+    try {
+      const parsed = new URL(url);
+      if (parsed.origin !== self.location.origin) continue;
+    } catch (e) { continue; }
+
+    if (seen.has(url)) continue;
+    seen.add(url);
+
+    try {
+      const req = new Request(url, { method: 'GET', credentials: 'same-origin' });
+      const resp = await fetch(req).catch(()=>null);
+      if (!resp) continue;
+
+      // Cache the response if it's successful or opaque
+      try { if (resp.status === 200 || resp.type === 'opaque' || resp.status === 0) await cache.put(url, resp.clone()).catch(()=>{}); } catch (e) {}
+
+      const contentType = resp.headers && resp.headers.get ? resp.headers.get('content-type') || '' : '';
+      if (contentType.indexOf('text/html') !== -1) {
+        // Read HTML and extract links (href/src)
+        const text = await resp.text().catch(()=>'');
+        if (!text) continue;
+        // crude regex to find href/src values
+        const re = /(?:href|src)=(?:"|')([^"'#> ]+)(?:"|')/gi;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+          const raw = m[1];
+          try {
+            const abs = new URL(raw, url).toString();
+            // only queue same-origin and within site root
+            if (abs.startsWith(self.location.origin)) {
+              // strip hash; keep query
+              const normalized = abs.split('#')[0];
+              if (!seen.has(normalized) && !queue.includes(normalized)) {
+                queue.push(normalized);
+              }
+            }
+          } catch (e) { /* ignore bad URLs */ }
+        }
+      }
+    } catch (e) {
+      // ignore and continue
+    }
   }
 }
 
