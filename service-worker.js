@@ -38,20 +38,29 @@ async function crawl(start){
     if(!u||seen.has(u))continue;
     seen.add(u);
     let resp;
-    try{resp=await fetch(u);}catch{continue;}
+    try{
+      // choose no-cors for cross-origin requests so we can cache opaque responses
+      const parsed = new URL(u);
+      const isExternal = parsed.origin !== self.location.origin;
+      resp = await fetch(u, isExternal ? {mode:'no-cors'} : undefined);
+    }catch{continue;}
     if(!resp)continue;
     if(resp.ok||resp.type==='opaque') try{await c.put(u,resp.clone());}catch{}
     const ct=resp.headers.get('content-type')||'';
     if(!ct.includes('text/html'))continue;
-    const html=await resp.text().catch(()=>null);
+    // only attempt to read HTML text for same-origin or CORS-allowed responses
+    const html = await resp.text().catch(()=>null);
     if(!html)continue;
     const re=/(?:href|src)=["']([^"'#> ]+)["']/gi;
     let m;
     while((m=re.exec(html))!==null){
       try{
-        const abs=new URL(m[1],u).toString().split('#')[0];
-        if(abs.startsWith(self.location.origin)&&!seen.has(abs)&&!queue.includes(abs))
+        const abs = new URL(m[1], u).toString().split('#')[0];
+        if(!abs.startsWith('http')) continue;
+        if(!seen.has(abs) && !queue.includes(abs)){
+          // enqueue external and same-origin resources; external will be fetched with no-cors above
           queue.push(abs);
+        }
       }catch{}
     }
   }
