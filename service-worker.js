@@ -1,7 +1,7 @@
 // service-worker.js
 const VERSION = 'lts';
 const CACHE = `unblocked-games-${VERSION}`;
-const SHELL = ['/', '/index.html'];
+const SHELL = ['/', '/index.html', '/assets/css/fa.min.css'];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
