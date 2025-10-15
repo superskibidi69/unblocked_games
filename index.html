@@ -11,7 +11,28 @@
 <meta name="apple-mobile-web-app-title" content="Unblocked Games" />
 <link rel="manifest" href="/assets/icons/site.webmanifest" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-<script>if('serviceWorker'in navigator)navigator.serviceWorker.register('/service-worker.js').catch(()=>{});</script>
+<script>if ('serviceWorker' in navigator) {navigator.serviceWorker.register('/service-worker.js')
+    .then(registration => {
+      console.log('SW registered: ', registration);
+      
+      // Check cache status
+      if (registration.active) {
+        registration.active.postMessage({ type: 'GET_CACHE_STATUS' });
+      }
+      
+      navigator.serviceWorker.addEventListener('message', event => {
+        if (event.data.type === 'CACHE_STATUS') {
+          console.log(`Cached ${event.data.count} URLs`);
+        }
+        if (event.data.type === 'SW_READY') {
+          console.log('Service Worker is ready for offline use');
+        }
+      });
+    })
+    .catch(registrationError => {
+      console.log('SW registration failed: ', registrationError);
+    });
+}</script>
 <style>
 :root {
   --bg1:#070b18;
@@ -206,7 +227,6 @@ games.sort((a,b)=>{
   const bLabel = b.querySelector('.label').textContent.trim();
   return aLabel.localeCompare(bLabel, undefined, {numeric:true, sensitivity:'base'});
 });
-// re-attach in order and prepare animations
 games.forEach((g, i)=>{
   g.classList.add('game-animate');
   // staggered entrance but small delay to keep it snappy
@@ -216,7 +236,6 @@ games.forEach((g, i)=>{
   requestAnimationFrame(()=> g.classList.add('show'));
 });
 
-// search filter (keeps the sorted order)
 document.getElementById('search').addEventListener('input', e => {
   const q = e.target.value.trim().toLowerCase();
   games.forEach(g => {

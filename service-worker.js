@@ -1,219 +1,263 @@
 // service-worker.js
-const VERSION = 'forgot';
+const VERSION = 'v2-immediate-dasdasr-all';
 const CACHE = `unblocked-games-${VERSION}`;
-const SHELL = ['/', '/index.html', '/offline.html'];
-const CRAWL_MARKER = 'sw:crawl-done-v1';
+const SHELL = ['/', '/index.html'];
 
-self.addEventListener('install', e=>{
+self.addEventListener('install', e => {
   self.skipWaiting();
-  e.waitUntil((async()=>{
+  e.waitUntil((async () => {
     const c = await caches.open(CACHE);
-    await c.addAll(SHELL).catch(()=>{});
-    // Don't force a full crawl at install in case SW was installed from non-root page.
-    // Keep install quick; crawl will be triggered on first root navigation.
+    await c.addAll(SHELL).catch(() => {});
+    
+    // IMMEDIATELY START CRAWLING EVERYTHING FROM ROOT
+    console.log('INSTALL: Starting immediate recursive crawl of everything...');
+    try {
+      await crawl(self.location.origin + '/');
+      console.log('INSTALL: Recursive crawl completed');
+    } catch (err) {
+      console.log('INSTALL: Crawl completed with some issues', err);
+    }
   })());
 });
 
-self.addEventListener('activate', e=>{
-  e.waitUntil((async()=>{
+self.addEventListener('activate', e => {
+  e.waitUntil((async () => {
     const keys = await caches.keys();
-    for(const k of keys) if(k!==CACHE) await caches.delete(k);
+    for (const k of keys) if (k !== CACHE) await caches.delete(k);
     await self.clients.claim();
+    
+    // Tell all clients we're ready
+    const clients = await self.clients.matchAll();
+    clients.forEach(client => {
+      client.postMessage({
+        type: 'SW_READY',
+        message: 'Service Worker activated and ready to serve offline'
+      });
+    });
   })());
 });
 
-async function fetchAndPut(req){
+async function crawl(startUrl) {
+  const seen = new Set();
+  const queue = [startUrl];
   const c = await caches.open(CACHE);
-  try{
-    // If req is a Request object or a URL string, get the url
-    const url = typeof req === 'string' ? req : req.url;
-    const isExternal = new URL(url).origin !== self.location.origin;
-    // For cross-origin resources use no-cors so opaque responses can be cached.
-    const opts = isExternal ? { mode: 'no-cors' } : undefined;
-    const r = await fetch(req, opts);
-    if(r && (r.ok || r.type === 'opaque')) await c.put(req, r.clone());
-    return r;
-  }catch{return null;}
-}
-
-async function crawl(start){
-  const seen=new Set(),queue=[start];
-  const c=await caches.open(CACHE);
-  // Allow a much larger crawl to try to cache everything under the root.
-  const MAX=10000;
-  while(queue.length && seen.size<MAX){
-    const u=queue.shift();
-    if(!u||seen.has(u))continue;
-    seen.add(u);
-    let resp;
-    try{
-      // choose no-cors for cross-origin requests so we can cache opaque responses
-      const parsed = new URL(u);
-      const isExternal = parsed.origin !== self.location.origin;
-      // Restrict recursive crawling to same-origin only (still allow caching of external assets
-      // when they are directly fetched via navigation or asset requests).
-      resp = await fetch(u, isExternal ? {mode:'no-cors'} : undefined);
-    }catch{continue;}
-    if(!resp)continue;
-    if(resp.ok||resp.type==='opaque') try{await c.put(u,resp.clone());}catch{}
-    const ct=resp.headers.get('content-type')||'';
-    if(!ct.includes('text/html'))continue;
-    // only attempt to read HTML text for same-origin or CORS-allowed responses
-    const html = await resp.text().catch(()=>null);
-    if(!html)continue;
-    const re=/(?:href|src)=["']([^"'#> ]+)["']/gi;
-    let m;
-    while((m=re.exec(html))!==null){
-      try{
-        const abs = new URL(m[1], u).toString().split('#')[0];
-        if(!abs.startsWith('http')) continue;
-        // Only enqueue same-origin links for the deep recursive crawl so we focus on root content.
-        if(new URL(abs).origin !== self.location.origin) continue;
-        if(!seen.has(abs) && !queue.includes(abs)){
-          queue.push(abs);
+  
+  console.log('CRAWL: Starting from', startUrl);
+  
+  // Very high limit to cache everything
+  const MAX_URLS = 50000;
+  let crawledCount = 0;
+  
+  while (queue.length > 0 && seen.size < MAX_URLS) {
+    const url = queue.shift();
+    
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    crawledCount++;
+    
+    if (crawledCount % 50 === 0) {
+      console.log(`CRAWL: Progress - ${crawledCount} URLs processed`);
+    }
+    
+    try {
+      const urlObj = new URL(url);
+      const isExternal = urlObj.origin !== self.location.origin;
+      
+      // For same-origin, try normally first, then no-cors as fallback
+      let response;
+      if (!isExternal) {
+        try {
+          response = await fetch(url, { 
+            mode: 'cors',
+            credentials: 'include',
+            cache: 'no-cache'
+          });
+        } catch {
+          response = await fetch(url, { mode: 'no-cors' });
         }
-      }catch{}
+      } else {
+        response = await fetch(url, { mode: 'no-cors' });
+      }
+      
+      if (response && (response.ok || response.type === 'opaque')) {
+        await c.put(url, response.clone());
+        
+        // Only parse HTML for same-origin to find more links
+        if (!isExternal && response.headers.get('content-type')?.includes('text/html')) {
+          try {
+            const html = await response.text();
+            const links = extractUrls(html, url);
+            
+            for (const link of links) {
+              if (!seen.has(link) && !queue.includes(link)) {
+                queue.push(link);
+              }
+            }
+          } catch {
+            // Skip HTML parsing if it fails
+          }
+        }
+      }
+    } catch (error) {
+      // Continue with next URL even if one fails
+      continue;
     }
   }
+  
+  console.log(`CRAWL: Completed! Processed ${crawledCount} URLs`);
 }
 
-async function hasCrawled(){
-  try{
-    const c = await caches.open(CACHE);
-    const m = await c.match(new Request(CRAWL_MARKER));
-    return !!m;
-  }catch{return false;}
-}
-
-async function markCrawled(){
-  try{
-    const c = await caches.open(CACHE);
-    await c.put(new Request(CRAWL_MARKER), new Response('1'));
-  }catch{}
-}
-
-async function navFallback(req){
-  const c=await caches.open(CACHE);
-  try{
-    const net=await fetch(req);
-    try{await c.put(req,net.clone());}catch{}
-    return net;
-  }catch{
-    return (await c.match(req))||c.match('/offline.html')||c.match('/index.html');
+function extractUrls(html, baseUrl) {
+  const urls = new Set();
+  
+  // Match href attributes
+  const hrefRegex = /href=["']([^"'\s#>]+)["']/gi;
+  let match;
+  while ((match = hrefRegex.exec(html)) !== null) {
+    try {
+      const absoluteUrl = new URL(match[1], baseUrl).toString().split('#')[0];
+      if (absoluteUrl.startsWith('http')) {
+        urls.add(absoluteUrl);
+      }
+    } catch {}
   }
+  
+  // Match src attributes  
+  const srcRegex = /src=["']([^"'\s#>]+)["']/gi;
+  while ((match = srcRegex.exec(html)) !== null) {
+    try {
+      const absoluteUrl = new URL(match[1], baseUrl).toString().split('#')[0];
+      if (absoluteUrl.startsWith('http')) {
+        urls.add(absoluteUrl);
+      }
+    } catch {}
+  }
+  
+  // Match action attributes (forms)
+  const actionRegex = /action=["']([^"'\s#>]+)["']/gi;
+  while ((match = actionRegex.exec(html)) !== null) {
+    try {
+      const absoluteUrl = new URL(match[1], baseUrl).toString().split('#')[0];
+      if (absoluteUrl.startsWith('http')) {
+        urls.add(absoluteUrl);
+      }
+    } catch {}
+  }
+  
+  // Match CSS url() values
+  const cssUrlRegex = /url\(["']?([^"')]+)["']?\)/gi;
+  while ((match = cssUrlRegex.exec(html)) !== null) {
+    try {
+      const absoluteUrl = new URL(match[1], baseUrl).toString().split('#')[0];
+      if (absoluteUrl.startsWith('http')) {
+        urls.add(absoluteUrl);
+      }
+    } catch {}
+  }
+  
+  return Array.from(urls);
 }
 
-self.addEventListener('fetch',e=>{
-  const req=e.request;
-  if(req.method!=='GET')return;
-  const isNavigate = req.mode === 'navigate';
-
-  // Helper to trigger a background crawl of the origin root.
-  const triggerCrawl = () => e.waitUntil((async()=>{
-    try{ await crawl(self.location.origin + '/'); }catch{}
+self.addEventListener('fetch', e => {
+  const request = e.request;
+  
+  // Skip non-GET requests
+  if (request.method !== 'GET') return;
+  
+  e.respondWith((async () => {
+    const cache = await caches.open(CACHE);
+    
+    // Always try cache first for maximum offline performance
+    const cachedResponse = await cache.match(request);
+    
+    if (cachedResponse) {
+      // Background update from network
+      e.waitUntil((async () => {
+        try {
+          const networkResponse = await fetch(request);
+          if (networkResponse.ok || networkResponse.type === 'opaque') {
+            await cache.put(request, networkResponse.clone());
+          }
+        } catch {
+          // Ignore network errors for background update
+        }
+      })());
+      
+      return cachedResponse;
+    }
+    
+    // If not in cache, try network
+    try {
+      const networkResponse = await fetch(request);
+      
+      // Cache successful responses
+      if (networkResponse.ok || networkResponse.type === 'opaque') {
+        await cache.put(request, networkResponse.clone());
+      }
+      
+      return networkResponse;
+    } catch (error) {
+      // Network failed - try to find alternative in cache
+      
+      // For navigation requests, try index.html as fallback
+      if (request.mode === 'navigate') {
+        const fallback = await cache.match('/index.html') || 
+                         await cache.match('/') ||
+                         new Response('Offline - no cached content available', {
+                           status: 503,
+                           headers: { 'Content-Type': 'text/plain' }
+                         });
+        return fallback;
+      }
+      
+      // For other requests, return appropriate fallback
+      if (request.destination === 'image') {
+        return new Response(
+          `<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100" viewBox="0 0 100 100">
+            <rect width="100%" height="100%" fill="#ccc"/>
+            <text x="50%" y="50%" font-family="Arial" font-size="10" text-anchor="middle" dy=".3em">❌</text>
+           </svg>`,
+          { headers: { 'Content-Type': 'image/svg+xml' } }
+        );
+      }
+      
+      return new Response('Network error', { 
+        status: 503,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
   })());
+});
 
-  if(isNavigate){
-    // For navigation requests we try network first but refuse to serve redirect responses.
-    e.respondWith((async()=>{
-      const c = await caches.open(CACHE);
-      const cached = await c.match(req);
-      try{
-        const net = await fetch(req);
-        // If the network response was redirected (or a 3xx), don't return it to avoid navigation redirects.
-        if(net && (net.redirected || (net.status>=300 && net.status<400))){
-          // update cache in background and return cached or fallback
-          triggerCrawl();
-          return cached || c.match('/offline.html') || c.match('/index.html') || new Response('offline',{status:503});
-        }
-        // store whatever valid network response we got
-        if(net && (net.ok || net.type==='opaque')){
-          try{ await c.put(req, net.clone()); }catch{}
-        }
-        // after serving this navigation, if this navigation is for root ('/'), run a one-time deep same-origin crawl
-        (async()=>{
-          try{
-            const url = new URL(req.url);
-            if(url.pathname === '/' || url.pathname === '/index.html'){
-              const already = await hasCrawled();
-              if(!already){
-                await crawl(self.location.origin + '/');
-                await markCrawled();
-              }
-            }else{
-              // still trigger a light crawl in background to pick up linked assets
-              triggerCrawl();
-            }
-          }catch{}
-        })();
-        return net;
-      }catch(err){
-        // network failed: return cached or fallback, still trigger crawl attempt
-        triggerCrawl();
-        return cached || c.match('/offline.html') || c.match('/index.html') || new Response('offline',{status:503});
+// Handle messages from main page
+self.addEventListener('message', e => {
+  const data = e.data;
+  if (!data) return;
+  
+  if (data.type === 'PRECACHE_URLS' && Array.isArray(data.urls)) {
+    e.waitUntil((async () => {
+      const cache = await caches.open(CACHE);
+      for (const url of data.urls) {
+        try {
+          const response = await fetch(url, { mode: 'no-cors' });
+          if (response) await cache.put(url, response.clone());
+        } catch {}
       }
     })());
-    return;
   }
-
-  // Non-navigation GETs: prefer cached to be fast, but always attempt to fetch-and-put in background
-  e.respondWith((async()=>{
-    const c = await caches.open(CACHE);
-    const cached = await c.match(req);
-
-    // Start a background fetch-and-put (will use no-cors for external origins)
-    const bg = (async()=>{
-      try{ await fetchAndPut(req); }catch{};
-    })();
-    // Also trigger a site-wide crawl in background so visiting a single page caches everything.
-    triggerCrawl();
-
-    // If we have cached content, return it immediately while bg caching continues.
-    if(cached) return cached;
-
-    // Otherwise wait for the network result from fetchAndPut
-    const net = await (async()=>{
-      try{
-        const url = req.url;
-        const isExternal = new URL(url).origin !== self.location.origin;
-        const opts = isExternal ? { mode: 'no-cors' } : undefined;
-        const r = await fetch(req, opts);
-        return r;
-      }catch{return null;}
-    })();
-
-    if(net){
-      // do not return redirects to the client; prefer cached or fail
-      if(net.redirected || (net.status>=300 && net.status<400)){
-        return c.match(req) || new Response('',{status:503});
-      }
-      return net;
-    }
-
-    if(req.destination==='image'){
-      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
-      <rect width="100%" height="100%" fill="#111"/>
-      <text x="50%" y="50%" fill="#999" font-size="20" text-anchor="middle" dominant-baseline="middle">
-      offline</text></svg>`;
-      return new Response(svg,{headers:{'content-type':'image/svg+xml'}});
-    }
-    if(req.destination==='document')
-      return c.match('/offline.html')||new Response('offline',{status:503});
-    return new Response('',{status:503});
-  })());
-});
-
-self.addEventListener('message',e=>{
-  const d=e.data;
-  if(!d) return;
-  if(d.type==='PRECACHE_URLS'&&Array.isArray(d.urls)){
-    caches.open(CACHE).then(async c=>{
-      for(const u of d.urls){
-        try{
-          const r=await fetch(u,{mode:'no-cors'}).catch(()=>null);
-          if(r) await c.put(u,r.clone());
-        }catch{}
-      }
-    });
+  
+  if (data.type === 'GET_CACHE_STATUS') {
+    e.waitUntil((async () => {
+      const cache = await caches.open(CACHE);
+      const keys = await cache.keys();
+      const clients = await self.clients.matchAll();
+      clients.forEach(client => {
+        client.postMessage({
+          type: 'CACHE_STATUS',
+          count: keys.length,
+          urls: keys.map(req => req.url)
+        });
+      });
+    })());
   }
 });
