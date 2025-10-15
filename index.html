@@ -97,6 +97,11 @@ input#search:focus{background-color:rgba(255,255,255,0.18);}
   grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
   gap:18px;
 }
+a.game{will-change:transform,opacity}
+/* entrance animation for game tiles (GPU friendly: transform + opacity) */
+.game-animate{opacity:0;transform:translateY(10px) scale(0.995);transition:transform .45s cubic-bezier(.16,.8,.24,1),opacity .35s ease}
+.game-animate.show{opacity:1;transform:none}
+
 a.game{
   display:flex;align-items:center;gap:12px;
   padding:14px 16px;
@@ -152,6 +157,11 @@ footer{margin-top:24px;text-align:center;color:var(--muted);font-size:13px}
       <div class="info"><div class="label">Suika / Watermelon Game</div></div>
       <div class="dot"><i class="fa-solid fa-play"></i></div>
     </a>
+    <a class="game" href="/games/stickman-duel/">
+      <div class="preview"><img src="assets/img/stickduel.png" alt=""></div>
+      <div class="info"><div class="label">Stickman Duel</div></div>
+      <div class="dot"><i class="fa-solid fa-play"></i></div>
+    </a>
   </div>
   <footer>Made by superfood</footer>
 </div>
@@ -187,14 +197,30 @@ draw();
 
 // search & auto sort
 const gameList=document.getElementById('gameList');
-const games=[...gameList.querySelectorAll('a.game')];
-games.sort((a,b)=>a.querySelector('.label').textContent.localeCompare(b.querySelector('.label').textContent));
-games.forEach(g=>gameList.appendChild(g));
-document.getElementById('search').addEventListener('input',e=>{
-  const q=e.target.value.toLowerCase();
-  games.forEach(g=>{
-    const label=g.querySelector('.label').textContent.toLowerCase();
-    g.style.display=label.includes(q)?'flex':'none';
+let games=[...gameList.querySelectorAll('a.game')];
+
+// robust, case-insensitive, numeric-aware alphabetical sort
+games.sort((a,b)=>{
+  const aLabel = a.querySelector('.label').textContent.trim();
+  const bLabel = b.querySelector('.label').textContent.trim();
+  return aLabel.localeCompare(bLabel, undefined, {numeric:true, sensitivity:'base'});
+});
+// re-attach in order and prepare animations
+games.forEach((g, i)=>{
+  g.classList.add('game-animate');
+  // staggered entrance but small delay to keep it snappy
+  g.style.transitionDelay = `${Math.min(i * 40, 300)}ms`;
+  gameList.appendChild(g);
+  // trigger showing in next frame to avoid layout thrash
+  requestAnimationFrame(()=> g.classList.add('show'));
+});
+
+// search filter (keeps the sorted order)
+document.getElementById('search').addEventListener('input', e => {
+  const q = e.target.value.trim().toLowerCase();
+  games.forEach(g => {
+    const label = g.querySelector('.label').textContent.toLowerCase();
+    g.style.display = label.includes(q) ? 'flex' : 'none';
   });
 });
 </script>

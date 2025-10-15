@@ -19,14 +19,25 @@
   --muted:#9fb8ff;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+html,body{min-height:100vh}
 body{
   font-family:Inter,system-ui,sans-serif;
-  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  /* fallback while gradient paints */
+  background-color:var(--bg1);
+  /* actual gradient rendered on a fixed pseudo-element for better iOS Safari support */
+  background:none;
   color:#e6eef8;
   display:flex;align-items:center;justify-content:center;
   overflow:hidden;
   position:relative;
+}
+body::before{
+  content:'';
+  position:fixed;inset:0;z-index:-3;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  -webkit-transform:translateZ(0);
+  transform:translateZ(0);
+  pointer-events:none;
 }
 canvas#particles{position:absolute;inset:0;z-index:-2;}
 .bgorb{
@@ -51,12 +62,17 @@ canvas#particles{position:absolute;inset:0;z-index:-2;}
   z-index:1;
   position:relative;
   text-align:center;
+  /* Safari needs the -webkit- prefix for backdrop-filter */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
 }
 @keyframes fadeUp{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:none}}
 h1{
   font-size:48px;
   background:linear-gradient(90deg,var(--accent),#6578ff);
+  background-clip:text;
   -webkit-background-clip:text;
+  color:transparent;
   -webkit-text-fill-color:transparent;
   margin-bottom:8px;
   text-shadow:0 0 6px rgba(94,234,212,0.5);
