@@ -1,5 +1,5 @@
 // service-worker.js
-const VERSION = '1.0.0.2';
+const VERSION = '1.2.0.2';
 const CACHE = `unblocked-games-${VERSION}`;
 const SHELL = ['/', '/index.html', '/offline.html', '/404.html'];
 
