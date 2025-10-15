@@ -1,7 +1,7 @@
 // service-worker.js
-const VERSION = '1.2.0.2';
+const VERSION = '1.2.0.3';
 const CACHE = `unblocked-games-${VERSION}`;
-const SHELL = ['/', '/index.html', '/offline.html', '/404.html'];
+const SHELL = ['/', '/index.html', '/offline.html'];
 
 self.addEventListener('install', e=>{
   self.skipWaiting();
@@ -32,7 +32,7 @@ async function fetchAndPut(req){
 async function crawl(start){
   const seen=new Set(),queue=[start];
   const c=await caches.open(CACHE);
-  const MAX=250;
+  const MAX=310;
   while(queue.length && seen.size<MAX){
     const u=queue.shift();
     if(!u||seen.has(u))continue;
@@ -61,7 +61,6 @@ async function navFallback(req){
   const c=await caches.open(CACHE);
   try{
     const net=await fetch(req);
-    if(net.status===404) return c.match('/404.html')||net;
     try{await c.put(req,net.clone());}catch{}
     return net;
   }catch{
@@ -86,7 +85,10 @@ self.addEventListener('fetch',e=>{
     if(net) return net;
 
     if(req.destination==='image'){
-      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="100%" height="100%" fill="#111"/><text x="50%" y="50%" fill="#999" font-size="20" text-anchor="middle" dominant-baseline="middle">offline</text></svg>`;
+      const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300">
+      <rect width="100%" height="100%" fill="#111"/>
+      <text x="50%" y="50%" fill="#999" font-size="20" text-anchor="middle" dominant-baseline="middle">
+      offline</text></svg>`;
       return new Response(svg,{headers:{'content-type':'image/svg+xml'}});
     }
     if(req.destination==='document')

@@ -19,22 +19,32 @@
   --muted:#9fb8ff;
 }
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%}
+html,body{min-height:100vh;}
 body{
   font-family:Inter,system-ui,sans-serif;
-  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  /* solid fallback for browsers that don't render the gradient immediately */
+  background-color:var(--bg1);
+  /* put the actual gradient on a fixed ::before layer so mobile Safari paints it reliably */
+  background: none;
   color:#e6eef8;
   display:flex;align-items:center;justify-content:center;
   overflow:hidden;
   position:relative;
 }
-canvas#particles{
-  position:absolute;inset:0;z-index:-2;
+/* fixed gradient layer behind everything (works better on mobile Safari than background-attachment:fixed) */
+body::before{
+  content:'';
+  position:fixed;inset:0;z-index:-3;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  -webkit-transform:translateZ(0); /* promote to its own layer */
+  transform:translateZ(0);
+  pointer-events:none;
 }
+canvas#particles{position:absolute;inset:0;z-index:-2;}
 .bgorb{
   position:absolute;inset:0;
-  background:radial-gradient(circle at 25% 20%,rgba(94,234,212,0.1),transparent 70%),
-             radial-gradient(circle at 80% 80%,rgba(99,102,241,0.08),transparent 70%);
+  background:radial-gradient(circle at 25% 20%,rgba(94,234,212,0.15),transparent 70%),
+             radial-gradient(circle at 80% 80%,rgba(99,102,241,0.12),transparent 70%);
   z-index:-1;
   animation:orb 14s ease-in-out infinite alternate;
 }
@@ -43,122 +53,103 @@ canvas#particles{
   100%{background-position:28% 22%,82% 78%}
 }
 .card{
-  background:rgba(255,255,255,0.03);
-  border:1px solid rgba(255,255,255,0.08);
-  border-radius:16px;
+  background:rgba(10,20,40,0.9);
+  border:1px solid rgba(94,234,212,0.25);
+  border-radius:20px;
   padding:32px;
-  width:min(820px,94vw);
-  box-shadow:0 12px 40px rgba(0,0,0,0.55);
+  width:min(900px,96vw);
+  box-shadow:0 12px 50px rgba(0,0,0,0.6);
   animation:fadeUp .6s ease-out;
-  z-index:1;
-  position:relative;
+  z-index:1;position:relative;
+  /* Safari needs the -webkit- prefix for backdrop-filter */
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter:blur(8px);
+  text-align:center;
 }
 @keyframes fadeUp{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:none}}
 h1{
-  font-size:32px;
+  font-size:42px;
   background:linear-gradient(90deg,var(--accent),#6578ff);
+  background-clip:text;
   -webkit-background-clip:text;
+  color:transparent;
   -webkit-text-fill-color:transparent;
+  text-shadow:0 0 6px rgba(94,234,212,0.5);
+  text-align:center;
 }
-p{color:var(--muted);font-size:15px;margin-top:4px}
+p{color:var(--muted);font-size:15px;margin-top:6px;text-align:center}
+
+input#search{
+  width:100%;
+  padding:12px 16px;
+  margin:20px 0 28px;
+  border-radius:16px;
+  border:none;
+  background:rgba(255,255,255,0.1);
+  color:#e6eef8;
+  font-size:16px;
+  outline:none;                  /* keep */
+  transition: background-color .2s ease;  /* change from 'background' to 'background-color' */
+}
+input#search:focus{background-color:rgba(255,255,255,0.18);}
 .games{
-  margin-top:18px;
   display:grid;
   grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-  gap:16px;
+  gap:18px;
 }
 a.game{
   display:flex;align-items:center;gap:12px;
-  padding:12px 14px;
-  border-radius:14px;
-  background:rgba(255,255,255,0.05);
-  border:1px solid rgba(255,255,255,0.07);
-  text-decoration:none;
-  color:#e6f0ff;
-  box-shadow:0 2px 8px rgba(0,0,0,0.3);
-  transition:transform .2s ease, box-shadow .2s ease, border .2s ease;
+  padding:14px 16px;
+  border-radius:18px;
+  background:rgba(20,30,60,0.9);
+  border:1px solid rgba(94,234,212,0.25);
+  text-decoration:none;color:#e6f0ff;
+  box-shadow:0 4px 15px rgba(0,0,0,0.35);
+  transition:transform .3s ease, box-shadow .3s ease, border .3s ease;
+  perspective:1000px;
 }
 a.game:hover{
-  transform:translateY(-5px);
-  box-shadow:0 6px 18px rgba(0,0,0,0.45);
-  border-color:rgba(94,234,212,0.25);
+  transform:translateY(-6px) rotateX(2deg) rotateY(2deg);
+  box-shadow:0 12px 25px rgba(94,234,212,0.45);
+  border-color:rgba(94,234,212,0.4);
 }
 .preview{
-  width:60px;height:60px;
-  border-radius:14px;
-  overflow:hidden;
-  flex-shrink:0;
-  box-shadow:0 0 12px rgba(94,234,212,0.2);
-  transition:transform .3s ease;
+  width:60px;height:60px;border-radius:16px;overflow:hidden;flex-shrink:0;
+  box-shadow:0 0 18px rgba(94,234,212,0.3);transition:transform .3s ease,box-shadow .3s ease;
 }
-a.game:hover .preview{transform:scale(1.05)}
+a.game:hover .preview{transform:scale(1.08) rotate(-1deg);box-shadow:0 0 22px rgba(94,234,212,0.5);}
 .preview img{width:100%;height:100%;object-fit:cover}
 .info{flex:1}
-.label{font-weight:600;font-size:15px}
+.label{font-weight:700;font-size:15px;text-shadow:0 0 3px rgba(0,0,0,0.4);}
 .dot{
-  width:40px;height:40px;border-radius:10px;
+  width:42px;height:42px;border-radius:12px;
   background:linear-gradient(135deg,var(--accent),#5c6cff);
-  display:flex;align-items:center;justify-content:center;
-  color:#0a1129;
-  font-size:18px;
+  display:flex;align-items:center;justify-content:center;color:#0a1129;font-size:18px;
   transition:transform .25s ease, box-shadow .25s ease;
 }
 a.game:hover .dot{
-  transform:scale(1.1);
-  box-shadow:0 0 18px rgba(94,234,212,0.4);
+  transform:scale(1.15);
+  box-shadow:0 0 20px rgba(94,234,212,0.45);
 }
-footer{margin-top:20px;text-align:right;color:var(--muted);font-size:13px}
-
-/* settings */
-#settingsBtn{
-  position:absolute;
-  top:12px;right:14px;
-  font-size:20px;
-  cursor:pointer;
-  color:var(--muted);
-  transition:color .2s ease;
-}
-#settingsBtn:hover{color:var(--accent)}
-#settingsPopup{
-  position:absolute;
-  top:46px;right:14px;
-  background:rgba(10,20,40,0.9);
-  border:1px solid rgba(255,255,255,0.1);
-  border-radius:12px;
-  padding:12px 16px;
-  font-size:14px;
-  display:none;
-  width:190px;
-  box-shadow:0 6px 20px rgba(0,0,0,0.5);
-}
-#settingsPopup label{display:block;margin-top:8px}
-#settingsPopup input[type=color]{width:100%;border:none;background:none;height:28px;margin-top:4px}
-#settingsPopup input[type=checkbox]{margin-right:6px}
+footer{margin-top:24px;text-align:center;color:var(--muted);font-size:13px}
 </style>
 </head>
 <body>
 <canvas id="particles"></canvas>
 <div class="bgorb"></div>
 <div class="card">
-  <i id="settingsBtn" class="fa-solid fa-gear"></i>
-  <div id="settingsPopup">
-    <label>Accent Color</label>
-    <input type="color" id="accentPicker" value="#5eead4">
-    <label><input type="checkbox" id="particlesToggle" checked>Enable Particles</label>
-  </div>
-
   <h1>Unblocked Games</h1>
   <p>Play in your browser — works offline too.</p>
-
-  <div class="games">
-    <a class="game" href="/suika">
-      <div class="preview"><img src="assets/img/suika.png" alt=""></div>
-      <div class="info"><div class="label">Suika / Watermelon Game</div></div>
+  <input type="text" id="search" placeholder="Search games...">
+  <div class="games" id="gameList">
+    <a class="game" href="/games/2048">
+      <div class="preview"><img src="assets/img/2048.png" alt=""></div>
+      <div class="info"><div class="label">2048</div></div>
       <div class="dot"><i class="fa-solid fa-play"></i></div>
     </a>
-    <a class="game" href="/2048">
-      <div class="preview"><img src="https://play-lh.googleusercontent.com/C6KZWrOckT3Lg1H5YyH6yD3u8pi_H_f4v3b8NwIu8lXYoJZjV8T8_YFjL5dL1ZjoVw=w480-h960" alt=""></div>
-      <div class="info"><div class="label">2048</div></div>
+    <a class="game" href="/games/suika">
+      <div class="preview"><img src="assets/img/suika.png" alt=""></div>
+      <div class="info"><div class="label">Suika / Watermelon Game</div></div>
       <div class="dot"><i class="fa-solid fa-play"></i></div>
     </a>
   </div>
@@ -166,24 +157,12 @@ footer{margin-top:20px;text-align:right;color:var(--muted);font-size:13px}
 </div>
 
 <script>
-// service worker
-if('serviceWorker' in navigator)
-  navigator.serviceWorker.register('/service-worker.js').catch(()=>{});
-
-// tab visuals
-document.title = "Unblocked Games – Play Offline";
-
 // particles
 const c=document.getElementById('particles');
 const ctx=c.getContext('2d');
 let w,h,particles=[];
-let particlesEnabled=true;
-function resize(){
-  w=innerWidth;h=innerHeight;
-  c.width=w;c.height=h;
-}
-window.addEventListener('resize',resize);
-resize();
+function resize(){w=c.width=innerWidth;h=c.height=innerHeight;}
+window.addEventListener('resize',resize);resize();
 function rand(min,max){return Math.random()*(max-min)+min;}
 function spawn(){
   particles=[];
@@ -192,37 +171,32 @@ function spawn(){
 }
 spawn();
 function draw(){
-  if(!particlesEnabled){ctx.clearRect(0,0,w,h);requestAnimationFrame(draw);return;}
   ctx.clearRect(0,0,w,h);
   for(let p of particles){
     p.x+=p.vx;p.y+=p.vy;
     if(p.x<0||p.x>w)p.vx*=-1;
     if(p.y<0||p.y>h)p.vy*=-1;
     const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);
-    g.addColorStop(0,`rgba(94,234,212,${p.glow})`);
+    g.addColorStop(0,`rgba(94,234,212,${Math.max(p.glow,0.3)})`);
     g.addColorStop(1,'transparent');
-    ctx.fillStyle=g;
-    ctx.beginPath();
-    ctx.arc(p.x,p.y,p.r*4,0,Math.PI*2);
-    ctx.fill();
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r*4,0,Math.PI*2);ctx.fill();
   }
   requestAnimationFrame(draw);
 }
 draw();
 
-// settings
-const gear=document.getElementById('settingsBtn');
-const pop=document.getElementById('settingsPopup');
-gear.onclick=()=>{pop.style.display=pop.style.display==="block"?"none":"block";}
-document.addEventListener('click',e=>{
-  if(!pop.contains(e.target)&&e.target!==gear)pop.style.display="none";
+// search & auto sort
+const gameList=document.getElementById('gameList');
+const games=[...gameList.querySelectorAll('a.game')];
+games.sort((a,b)=>a.querySelector('.label').textContent.localeCompare(b.querySelector('.label').textContent));
+games.forEach(g=>gameList.appendChild(g));
+document.getElementById('search').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase();
+  games.forEach(g=>{
+    const label=g.querySelector('.label').textContent.toLowerCase();
+    g.style.display=label.includes(q)?'flex':'none';
+  });
 });
-document.getElementById('accentPicker').oninput=e=>{
-  document.documentElement.style.setProperty('--accent',e.target.value);
-};
-document.getElementById('particlesToggle').onchange=e=>{
-  particlesEnabled=e.target.checked;
-};
 </script>
 </body>
 </html>

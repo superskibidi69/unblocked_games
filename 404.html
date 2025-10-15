@@ -1,25 +1,105 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>404 — Page not found</title>
-  <style>
-    body{background:#0b1020;color:#e6eef8;font-family:Inter,ui-sans-serif,system-ui;padding:0;margin:0;display:flex;align-items:center;justify-content:center;height:100vh}
-    .wrap{max-width:900px;padding:28px;border-radius:12px;background:linear-gradient(180deg,#071229,#081426);box-shadow:0 10px 40px rgba(2,6,23,0.6);text-align:center}
-    h1{font-size:76px;margin:0 0 8px 0}
-    p{margin:0 0 16px;color:#95b7ff}
-    a{display:inline-block;padding:12px 18px;background:#1f6feb;color:white;border-radius:10px;text-decoration:none}
-  </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>404 | Page Not Found</title>
+<link rel="icon" type="image/png" href="/assets/icons/favicon-96x96.png" sizes="96x96" />
+<link rel="icon" type="image/svg+xml" href="/assets/icons/favicon.svg" />
+<link rel="shortcut icon" href="/assets/icons/favicon.ico" />
+<link rel="apple-touch-icon" sizes="180x180" href="/assets/icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-title" content="Unblocked Games" />
+<link rel="manifest" href="/assets/icons/site.webmanifest" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+<style>
+:root {
+  --bg1:#070b18;
+  --bg2:#0f1a38;
+  --accent:#5eead4;
+  --muted:#9fb8ff;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:Inter,system-ui,sans-serif;
+  background:linear-gradient(160deg,var(--bg1),var(--bg2));
+  color:#e6eef8;
+  display:flex;align-items:center;justify-content:center;
+  overflow:hidden;
+  position:relative;
+}
+canvas#particles{position:absolute;inset:0;z-index:-2;}
+.bgorb{
+  position:absolute;inset:0;
+  background:radial-gradient(circle at 25% 20%,rgba(94,234,212,0.15),transparent 70%),
+             radial-gradient(circle at 80% 80%,rgba(99,102,241,0.12),transparent 70%);
+  z-index:-1;
+  animation:orb 14s ease-in-out infinite alternate;
+}
+@keyframes orb{
+  0%{background-position:25% 20%,80% 80%}
+  100%{background-position:28% 22%,82% 78%}
+}
+.card{
+  background:rgba(10,20,40,0.9);
+  border:1px solid rgba(94,234,212,0.25);
+  border-radius:20px;
+  padding:32px;
+  width:min(600px,90vw);
+  box-shadow:0 12px 50px rgba(0,0,0,0.6);
+  animation:fadeUp .6s ease-out;
+  z-index:1;
+  position:relative;
+  text-align:center;
+}
+@keyframes fadeUp{from{opacity:0;transform:translateY(25px)}to{opacity:1;transform:none}}
+h1{
+  font-size:48px;
+  background:linear-gradient(90deg,var(--accent),#6578ff);
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  margin-bottom:8px;
+  text-shadow:0 0 6px rgba(94,234,212,0.5);
+}
+p{color:var(--muted);font-size:16px;margin-bottom:16px;}
+a.homeBtn{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 20px;border-radius:12px;
+  background:rgba(20,30,60,0.9);
+  border:1px solid rgba(94,234,212,0.25);
+  color:#e6eef8;
+  text-decoration:none;
+  font-weight:500;
+  box-shadow:0 2px 10px rgba(0,0,0,0.3);
+  transition:.2s;
+}
+a.homeBtn:hover{
+  transform:translateY(-3px);
+  box-shadow:0 6px 18px rgba(0,0,0,0.45);
+  border-color:var(--accent);
+}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>404</h1>
-    <p>We couldn't find that page. Try one of the games below or go back home.</p>
-    <p>
-      <a href="/">Home</a>
-      <a href="/suika/" style="margin-left:12px">Suika</a>
-    </p>
-  </div>
+<canvas id="particles"></canvas>
+<div class="bgorb"></div>
+<div class="card">
+  <h1>404</h1>
+  <p>Oops! The page you are looking for cannot be found.</p>
+  <a href="/" class="homeBtn"><i class="fa-solid fa-house"></i> Return Home</a>
+</div>
+<script>
+const c=document.getElementById('particles');
+const ctx=c.getContext('2d');
+let w,h,particles=[];
+function resize(){w=c.width=innerWidth;h=c.height=innerHeight;}
+window.addEventListener('resize',resize);
+resize();
+function rand(min,max){return Math.random()*(max-min)+min;}
+function spawn(){particles=[];for(let i=0;i<80;i++)particles.push({x:rand(0,w),y:rand(0,h),r:rand(1,3),vx:rand(-0.2,0.2),vy:rand(-0.2,0.2),glow:rand(0.3,0.8)});}
+spawn();
+function draw(){ctx.clearRect(0,0,w,h);for(let p of particles){p.x+=p.vx;p.y+=p.vy;if(p.x<0||p.x>w)p.vx*=-1;if(p.y<0||p.y>h)p.vy*=-1;const g=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r*4);g.addColorStop(0,`rgba(94,234,212,${Math.max(p.glow,0.3)})`);g.addColorStop(1,'transparent');ctx.fillStyle=g;ctx.beginPath();ctx.arc(p.x,p.y,p.r*4,0,Math.PI*2);ctx.fill();}requestAnimationFrame(draw);}
+draw();
+</script>
 </body>
 </html>
