@@ -1,5 +1,5 @@
 // service-worker.js
-const VERSION = 'v4-d-redirects';
+const VERSION = 'lts';
 const CACHE = `unblocked-games-${VERSION}`;
 const SHELL = ['/', '/index.html'];
 
