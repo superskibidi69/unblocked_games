@@ -1,5 +1,5 @@
 // service-worker.js
-const VERSION = 'lts';
+const VERSION = 'fa';
 const CACHE = `unblocked-games-${VERSION}`;
 const SHELL = ['/', '/index.html', '/assets/css/fa.min.css'];
 
