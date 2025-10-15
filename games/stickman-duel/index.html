@@ -1,5 +1,6 @@
 
 <html lang="en-us"><head>
+    <!-- <base href="https://cdn.jsdelivr.net/gh/Ieoldj-hs101082/Koans@03568ae5309942037071f3e50daf892ae3539c31/logic"> -->
 <title>Stickman Duel</title>
 <meta charset="utf-8">
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -80,7 +81,7 @@
       }
     };
   </script>
-  <script src="koans.js"></script>
+  <script src="https://cdn.jsdelivr.net/gh/Ieoldj-hs101082/Koans@03568ae5309942037071f3e50daf892ae3539c31/logic/data.js"></script>
   <script>
     // Compatibility shim: ensure any global SDK logger object with `.kg` has an `.error` method.
     // Some builds export a logger that implements log/info/warn but not error; code later calls kg.error()
@@ -113,11 +114,11 @@
   <!-- ad SDK and banner click handler removed -->
 <script>
     const buildUrl = "https://cdn.jsdelivr.net/gh/Ieoldj-hs101082/Koans@03568ae5309942037071f3e50daf892ae3539c31/logic";
-    const loaderUrl = 'sd.loader.js';
+    const loaderUrl = buildUrl + "/sd.loader.js";
     const config = {
-      dataUrl: "sd.data.js",
-      frameworkUrl: "sd.js",
-      codeUrl: "sd.wasm.js",
+      dataUrl: buildUrl + "/sd.data.js",
+      frameworkUrl: buildUrl + "/sd.js",
+      codeUrl: buildUrl + "/sd.wasm.js",
       streamingAssetsUrl: "https://cdn.jsdelivr.net/gh/Ieoldj-hs101082/Koans@03568ae5309942037071f3e50daf892ae3539c31/logic/StreamingAssets",
     };
 
