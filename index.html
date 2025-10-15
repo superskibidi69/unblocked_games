@@ -11,28 +11,62 @@
 <meta name="apple-mobile-web-app-title" content="Unblocked Games" />
 <link rel="manifest" href="/assets/icons/site.webmanifest" />
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-<script>if ('serviceWorker' in navigator) {navigator.serviceWorker.register('/service-worker.js')
+<script>if ('serviceWorker' in navigator) {
+  // Show loading state
+  const loadingMsg = document.createElement('div');
+  loadingMsg.style.cssText = 'position:fixed;top:20px;right:20px;background:var(--accent);color:#0a1129;padding:8px 12px;border-radius:8px;z-index:1000;font-size:12px;font-weight:bold;box-shadow:0 4px 12px rgba(94,234,212,0.3);';
+  loadingMsg.textContent = '🔄 Caching for offline...';
+  document.body.appendChild(loadingMsg);
+
+  navigator.serviceWorker.register('/service-worker.js')
     .then(registration => {
       console.log('SW registered: ', registration);
       
       // Check cache status
       if (registration.active) {
         registration.active.postMessage({ type: 'GET_CACHE_STATUS' });
+        
+        // Also trigger asset discovery to catch everything
+        setTimeout(() => {
+          registration.active.postMessage({ type: 'DISCOVER_ASSETS' });
+        }, 3000);
       }
       
       navigator.serviceWorker.addEventListener('message', event => {
         if (event.data.type === 'CACHE_STATUS') {
           console.log(`Cached ${event.data.count} URLs`);
+          loadingMsg.textContent = `✅ Cached ${event.data.count} resources!`;
+          setTimeout(() => {
+            loadingMsg.style.opacity = '0';
+            setTimeout(() => loadingMsg.remove(), 1000);
+          }, 2000);
         }
         if (event.data.type === 'SW_READY') {
           console.log('Service Worker is ready for offline use');
+          loadingMsg.textContent = '🎮 Ready for offline use!';
+          setTimeout(() => {
+            loadingMsg.style.opacity = '0';
+            setTimeout(() => loadingMsg.remove(), 1000);
+          }, 2000);
         }
       });
     })
     .catch(registrationError => {
       console.log('SW registration failed: ', registrationError);
+      loadingMsg.textContent = '❌ SW registration failed';
+      loadingMsg.style.background = '#ff6b6b';
+      setTimeout(() => loadingMsg.remove(), 3000);
     });
-}</script>
+}
+
+// Monitor offline/online status
+window.addEventListener('online', () => {
+  console.log('Back online - service worker will sync caches');
+});
+
+window.addEventListener('offline', () => {
+  console.log('Offline - serving from cache');
+});</script>
 <style>
 :root {
   --bg1:#070b18;
