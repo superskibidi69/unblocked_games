@@ -1,5 +1,5 @@
 // service-worker.js
-const VERSION = 'v2-immediate-dasdasr-all';
+const VERSION = 'v3-fix-redirects';
 const CACHE = `unblocked-games-${VERSION}`;
 const SHELL = ['/', '/index.html'];
 
@@ -44,7 +44,6 @@ async function crawl(startUrl) {
   
   console.log('CRAWL: Starting from', startUrl);
   
-  // Very high limit to cache everything
   const MAX_URLS = 50000;
   let crawledCount = 0;
   
@@ -63,20 +62,20 @@ async function crawl(startUrl) {
       const urlObj = new URL(url);
       const isExternal = urlObj.origin !== self.location.origin;
       
-      // For same-origin, try normally first, then no-cors as fallback
       let response;
       if (!isExternal) {
         try {
           response = await fetch(url, { 
             mode: 'cors',
             credentials: 'include',
-            cache: 'no-cache'
+            cache: 'no-cache',
+            redirect: 'follow' // FOLLOW redirects during crawl
           });
         } catch {
-          response = await fetch(url, { mode: 'no-cors' });
+          response = await fetch(url, { mode: 'no-cors', redirect: 'follow' });
         }
       } else {
-        response = await fetch(url, { mode: 'no-cors' });
+        response = await fetch(url, { mode: 'no-cors', redirect: 'follow' });
       }
       
       if (response && (response.ok || response.type === 'opaque')) {
@@ -99,7 +98,6 @@ async function crawl(startUrl) {
         }
       }
     } catch (error) {
-      // Continue with next URL even if one fails
       continue;
     }
   }
@@ -110,7 +108,6 @@ async function crawl(startUrl) {
 function extractUrls(html, baseUrl) {
   const urls = new Set();
   
-  // Match href attributes
   const hrefRegex = /href=["']([^"'\s#>]+)["']/gi;
   let match;
   while ((match = hrefRegex.exec(html)) !== null) {
@@ -122,7 +119,6 @@ function extractUrls(html, baseUrl) {
     } catch {}
   }
   
-  // Match src attributes  
   const srcRegex = /src=["']([^"'\s#>]+)["']/gi;
   while ((match = srcRegex.exec(html)) !== null) {
     try {
@@ -133,7 +129,6 @@ function extractUrls(html, baseUrl) {
     } catch {}
   }
   
-  // Match action attributes (forms)
   const actionRegex = /action=["']([^"'\s#>]+)["']/gi;
   while ((match = actionRegex.exec(html)) !== null) {
     try {
@@ -144,7 +139,6 @@ function extractUrls(html, baseUrl) {
     } catch {}
   }
   
-  // Match CSS url() values
   const cssUrlRegex = /url\(["']?([^"')]+)["']?\)/gi;
   while ((match = cssUrlRegex.exec(html)) !== null) {
     try {
@@ -174,7 +168,8 @@ self.addEventListener('fetch', e => {
       // Background update from network
       e.waitUntil((async () => {
         try {
-          const networkResponse = await fetch(request);
+          // Use 'manual' redirect mode to handle redirects properly
+          const networkResponse = await fetch(request, { redirect: 'manual' });
           if (networkResponse.ok || networkResponse.type === 'opaque') {
             await cache.put(request, networkResponse.clone());
           }
@@ -186,11 +181,40 @@ self.addEventListener('fetch', e => {
       return cachedResponse;
     }
     
-    // If not in cache, try network
+    // If not in cache, try network with proper redirect handling
     try {
-      const networkResponse = await fetch(request);
+      // Use 'manual' to get the actual response and handle redirects ourselves
+      const networkResponse = await fetch(request, { redirect: 'manual' });
       
-      // Cache successful responses
+      // Handle redirect responses
+      if (networkResponse.status >= 300 && networkResponse.status < 400) {
+        const location = networkResponse.headers.get('location');
+        if (location) {
+          // Follow the redirect manually
+          const redirectUrl = new URL(location, request.url).toString();
+          const redirectRequest = new Request(redirectUrl);
+          
+          // Try to get the redirected response from cache first
+          const cachedRedirect = await cache.match(redirectRequest);
+          if (cachedRedirect) {
+            return cachedRedirect;
+          }
+          
+          // If not in cache, fetch the redirected URL
+          try {
+            const redirectResponse = await fetch(redirectRequest);
+            if (redirectResponse.ok) {
+              await cache.put(request, networkResponse.clone()); // Cache the redirect response
+              await cache.put(redirectRequest, redirectResponse.clone()); // Cache the final response
+              return redirectResponse;
+            }
+          } catch {
+            // If redirect fetch fails, fall through to normal error handling
+          }
+        }
+      }
+      
+      // Cache successful non-redirect responses
       if (networkResponse.ok || networkResponse.type === 'opaque') {
         await cache.put(request, networkResponse.clone());
       }
@@ -239,7 +263,7 @@ self.addEventListener('message', e => {
       const cache = await caches.open(CACHE);
       for (const url of data.urls) {
         try {
-          const response = await fetch(url, { mode: 'no-cors' });
+          const response = await fetch(url, { mode: 'no-cors', redirect: 'follow' });
           if (response) await cache.put(url, response.clone());
         } catch {}
       }
