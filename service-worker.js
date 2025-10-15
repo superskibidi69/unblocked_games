@@ -1,14 +1,16 @@
 // service-worker.js
-const VERSION = 'hoybad';
+const VERSION = 'forgot';
 const CACHE = `unblocked-games-${VERSION}`;
 const SHELL = ['/', '/index.html', '/offline.html'];
+const CRAWL_MARKER = 'sw:crawl-done-v1';
 
 self.addEventListener('install', e=>{
   self.skipWaiting();
   e.waitUntil((async()=>{
     const c = await caches.open(CACHE);
     await c.addAll(SHELL).catch(()=>{});
-    try { await crawl(self.location.origin + '/'); } catch{}
+    // Don't force a full crawl at install in case SW was installed from non-root page.
+    // Keep install quick; crawl will be triggered on first root navigation.
   })());
 });
 
@@ -37,7 +39,8 @@ async function fetchAndPut(req){
 async function crawl(start){
   const seen=new Set(),queue=[start];
   const c=await caches.open(CACHE);
-  const MAX=310;
+  // Allow a much larger crawl to try to cache everything under the root.
+  const MAX=10000;
   while(queue.length && seen.size<MAX){
     const u=queue.shift();
     if(!u||seen.has(u))continue;
@@ -47,6 +50,8 @@ async function crawl(start){
       // choose no-cors for cross-origin requests so we can cache opaque responses
       const parsed = new URL(u);
       const isExternal = parsed.origin !== self.location.origin;
+      // Restrict recursive crawling to same-origin only (still allow caching of external assets
+      // when they are directly fetched via navigation or asset requests).
       resp = await fetch(u, isExternal ? {mode:'no-cors'} : undefined);
     }catch{continue;}
     if(!resp)continue;
@@ -62,13 +67,29 @@ async function crawl(start){
       try{
         const abs = new URL(m[1], u).toString().split('#')[0];
         if(!abs.startsWith('http')) continue;
+        // Only enqueue same-origin links for the deep recursive crawl so we focus on root content.
+        if(new URL(abs).origin !== self.location.origin) continue;
         if(!seen.has(abs) && !queue.includes(abs)){
-          // enqueue external and same-origin resources; external will be fetched with no-cors above
           queue.push(abs);
         }
       }catch{}
     }
   }
+}
+
+async function hasCrawled(){
+  try{
+    const c = await caches.open(CACHE);
+    const m = await c.match(new Request(CRAWL_MARKER));
+    return !!m;
+  }catch{return false;}
+}
+
+async function markCrawled(){
+  try{
+    const c = await caches.open(CACHE);
+    await c.put(new Request(CRAWL_MARKER), new Response('1'));
+  }catch{}
 }
 
 async function navFallback(req){
@@ -109,8 +130,22 @@ self.addEventListener('fetch',e=>{
         if(net && (net.ok || net.type==='opaque')){
           try{ await c.put(req, net.clone()); }catch{}
         }
-        // after serving this navigation, kick off a full crawl in background so other pages get cached
-        triggerCrawl();
+        // after serving this navigation, if this navigation is for root ('/'), run a one-time deep same-origin crawl
+        (async()=>{
+          try{
+            const url = new URL(req.url);
+            if(url.pathname === '/' || url.pathname === '/index.html'){
+              const already = await hasCrawled();
+              if(!already){
+                await crawl(self.location.origin + '/');
+                await markCrawled();
+              }
+            }else{
+              // still trigger a light crawl in background to pick up linked assets
+              triggerCrawl();
+            }
+          }catch{}
+        })();
         return net;
       }catch(err){
         // network failed: return cached or fallback, still trigger crawl attempt
