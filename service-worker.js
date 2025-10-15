@@ -1,16 +1,7 @@
 // service-worker.js
-const VERSION = 'v6-cache-everything';
+const VERSION = 'v3-d-redirects';
 const CACHE = `unblocked-games-${VERSION}`;
 const SHELL = ['/', '/index.html'];
-
-// Common file extensions to aggressively cache
-const ASSET_EXTENSIONS = [
-  '.png', '.jpg', '.jpeg', '.gif', '.svg', '.webp', '.ico',
-  '.js', '.css', '.html', '.htm', '.json', '.xml',
-  '.woff', '.woff2', '.ttf', '.eot',
-  '.mp3', '.wav', '.ogg', '.mp4', '.webm',
-  '.txt', '.md', '.pdf'
-];
 
 self.addEventListener('install', e => {
   self.skipWaiting();
@@ -23,11 +14,6 @@ self.addEventListener('install', e => {
     try {
       await crawl(self.location.origin + '/');
       console.log('INSTALL: Recursive crawl completed');
-      
-      // ALSO CACHE ALL ASSETS WE CAN FIND
-      console.log('INSTALL: Starting asset discovery...');
-      await discoverAndCacheAssets();
-      console.log('INSTALL: Asset discovery completed');
     } catch (err) {
       console.log('INSTALL: Crawl completed with some issues', err);
     }
@@ -166,113 +152,6 @@ function extractUrls(html, baseUrl) {
   return Array.from(urls);
 }
 
-// NEW: Aggressively discover and cache all assets
-async function discoverAndCacheAssets() {
-  const c = await caches.open(CACHE);
-  const baseUrl = self.location.origin;
-  const assetUrls = new Set();
-  
-  // Common asset directories to scan
-  const directories = [
-    '/',
-    '/assets/',
-    '/images/',
-    '/img/',
-    '/static/',
-    '/js/',
-    '/css/',
-    '/fonts/',
-    '/games/',
-    '/games/assets/',
-    '/games/images/',
-    '/games/js/',
-    '/games/css/'
-  ];
-  
-  // Common filenames to try
-  const commonFiles = [
-    'index.html', 'main.js', 'app.js', 'game.js', 'script.js', 
-    'style.css', 'main.css', 'app.css', 'game.css',
-    'favicon.ico', 'manifest.json', 'robots.txt'
-  ];
-  
-  console.log('ASSET DISCOVERY: Scanning for common assets...');
-  
-  // Try common file patterns in each directory
-  for (const directory of directories) {
-    for (const file of commonFiles) {
-      const url = baseUrl + directory + file;
-      assetUrls.add(url);
-    }
-    
-    // Also try files with common extensions in this directory
-    for (const ext of ASSET_EXTENSIONS) {
-      const url = baseUrl + directory + '**' + ext;
-      assetUrls.add(url);
-    }
-  }
-  
-  // Also try to discover assets from existing cached pages
-  try {
-    const keys = await c.keys();
-    for (const request of keys) {
-      const url = request.url;
-      if (url.startsWith(baseUrl)) {
-        // Extract directory and filename patterns from cached URLs
-        const urlObj = new URL(url);
-        const path = urlObj.pathname;
-        const segments = path.split('/').filter(s => s);
-        
-        if (segments.length > 0) {
-          const filename = segments[segments.length - 1];
-          const dir = path.substring(0, path.lastIndexOf('/') + 1);
-          
-          // If this looks like an asset, try similar patterns
-          if (ASSET_EXTENSIONS.some(ext => filename.includes(ext))) {
-            // Try variations of this asset path
-            assetUrls.add(baseUrl + dir + '*');
-            assetUrls.add(baseUrl + dir + '**');
-          }
-        }
-      }
-    }
-  } catch (err) {
-    console.log('ASSET DISCOVERY: Error analyzing cached URLs', err);
-  }
-  
-  // Try to fetch and cache all discovered asset patterns
-  console.log(`ASSET DISCOVERY: Attempting to cache ${assetUrls.size} asset patterns...`);
-  let cachedCount = 0;
-  
-  for (const urlPattern of assetUrls) {
-    try {
-      // Convert wildcard patterns to actual URLs we can try
-      if (urlPattern.includes('*')) {
-        // For now, just try the base URL without wildcards
-        const basePath = urlPattern.split('*')[0];
-        if (basePath && basePath.startsWith('http')) {
-          const response = await fetch(basePath, { mode: 'no-cors' }).catch(() => null);
-          if (response && (response.ok || response.type === 'opaque')) {
-            await c.put(basePath, response.clone());
-            cachedCount++;
-          }
-        }
-      } else {
-        // Regular URL
-        const response = await fetch(urlPattern, { mode: 'no-cors' }).catch(() => null);
-        if (response && (response.ok || response.type === 'opaque')) {
-          await c.put(urlPattern, response.clone());
-          cachedCount++;
-        }
-      }
-    } catch (err) {
-      // Continue with next URL
-    }
-  }
-  
-  console.log(`ASSET DISCOVERY: Successfully cached ${cachedCount} additional assets`);
-}
-
 self.addEventListener('fetch', e => {
   const request = e.request;
   
@@ -404,10 +283,5 @@ self.addEventListener('message', e => {
         });
       });
     })());
-  }
-  
-  // NEW: Manual trigger for asset discovery
-  if (data.type === 'DISCOVER_ASSETS') {
-    e.waitUntil(discoverAndCacheAssets());
   }
 });
